@@ -134,7 +134,20 @@ when 'list', nil, ''
   puts ''
   puts Hirb::Helpers::Table.render @config.instances.collect(&:to_hash)
 else
-  Trollop::die "Unknown command: #{cmd}"
+  puts "Usage: "
+  puts ""
+  puts "#{$0} command [options or instances names]"
+  puts ""
+  puts "Commands:"
+  puts " list    - Show all managed instances"
+  puts " start   - Start the named instaces (blank for all)"
+  puts " stop    - Stop the named instances (blank for all)"
+  puts " restart - Restart the named instances (blank for all)"
+  puts " delete  - Delete the named instances"
+  puts " add     - Add a new instance"
+  puts "   --name Name of the instance"
+  puts "   --port Port of the instance"
+  puts "   --root Root of the instance (defaults to PWD)"
 end
 
 File.open( config_filepath, 'w' ) {|f| YAML.dump(@config, f) }
