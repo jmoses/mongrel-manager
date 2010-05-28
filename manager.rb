@@ -1,0 +1,140 @@
+#!/usr/bin/env ruby
+
+require 'rubygems'
+require 'trollop'
+require 'hirb'
+require 'pathname'
+require 'ostruct'
+require 'yaml'
+
+def returning( object ) 
+  yield object
+  object
+end
+
+class MongrelInstance
+  attr :name, true
+  attr :port, true
+  attr :root, true
+  
+  def initialize( name, port, root )
+    @name = name
+    @port = port
+    @root = root
+  end
+  
+  def to_hash
+    {
+      :name => @name,
+      :port => @port,
+      :root => @root,
+      :status => status
+    }
+  end
+  
+  def start
+    zap if status == 'stale'
+
+    `mongrel_rails start -p #{port} -c #{root} -p #{pidfile} -d`
+    sleep 5
+    if status != 'running'
+      STDERR.puts "Error starting mongrel, check the log file from #{root}/log/mongrel.log"
+      false
+    else
+      true
+    end
+  end
+  
+  def stop
+    unless status == 'running'
+      puts "Instance is not running."
+      return false
+    end
+    
+    `mongrel_rails stop -c #{root} -p #{pidfile}`
+    sleep 5
+    status != 'running'
+  end
+  
+  def restart
+    stop && start
+    start
+  end
+  
+  def zap
+    File.rm( pidfile )
+  end
+  
+  def pidfile
+    @pidfile ||= File.join( root, 'log', 'mongrel.pid')
+  end
+  
+  def status
+    if File.exists?( pidfile )
+      begin
+        Process.getpgid( File.read( pidfile ).to_i )
+        'running'
+      rescue Errno::ESRCH
+        'stale'
+      end
+    else
+      'not running'
+    end
+  end
+end
+
+config_filepath = File.expand_path("~/.mongrel_manager.conf")
+
+@config = (File.exists?(config_filepath) and config = YAML.load( File.read(config_filepath) )) ? config : OpenStruct.new(:instances => [])
+
+cmd = ARGV.shift
+case cmd
+when 'add'
+  cmd_opts = Trollop.options do
+    opt :name, "Name of the instance", :type => :string, :required => true
+    opt :port, "Port the instance runs on", :type => :int, :required => true
+    opt :root, "Root of the project (defaults to CWD)", :type => :string
+  end
+  
+  if cmd_opts[:root] == '' or cmd_opts[:root] == nil
+    cmd_opts[:root] = Dir.pwd
+  end
+  
+  puts "Adding instances #{cmd_opts[:name]} on port #{cmd_opts[:port]} from #{cmd_opts[:root]}"
+  
+  if @config.instances.any? {|i| i.name == cmd_opts[:name] }
+    STDERR.puts(" an instance already exists with this name.")
+    exit 1
+  end
+  
+  if @config.instances.any? {|i| i.port == cmd_opts[:port] }
+    STDERR.puts(" an instance already exists with that port.")
+    exit 1
+  end
+  
+  if @config.instances.any? {|i| i.root == cmd_opts[:root] }
+    STDERR.puts(" an instance already exists with that root.")
+    exit 1
+  end
+  
+  @config.instances << MongrelInstance.new(cmd_opts[:name], cmd_opts[:port], cmd_opts[:root])
+  
+when 'start', 'stop', 'restart'
+  @config.instances.select {|i| ARGV.empty? || ARGV.any? {|n| i.name == n} }.each do |instance|
+    if instance.send(cmd)
+      puts "#{instance.name} #{cmd}: success"
+    else
+      puts "#{instance.name} #{cmd}: fail, status: #{instance.status}"
+    end
+  end
+when 'delete'
+  @config.instances.delete_if {|i| ARGV.any? {|n| i.name == n} }
+when 'list', nil, ''
+  puts "Managing the following instances:"
+  puts ''
+  puts Hirb::Helpers::Table.render @config.instances.collect(&:to_hash)
+else
+  Trollop::die "Unknown command: #{cmd}"
+end
+
+File.open( config_filepath, 'w' ) {|f| YAML.dump(@config, f) }
