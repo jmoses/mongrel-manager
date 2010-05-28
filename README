@@ -1,1 +1,17 @@
 Script for managing multiple local mongrel instances for local development of many projects.
+
+# Usage
+
+mongrel-manager command [options or instances names]
+
+Commands:
+ list    - Show all managed instances
+ start   - Start the named instaces (blank for all)
+ stop    - Stop the named instances (blank for all)
+ restart - Restart the named instances (blank for all)
+ delete  - Delete the named instances
+ add     - Add a new instance
+   --name Name of the instance
+   --port Port of the instance
+   --root Root of the instance (defaults to PWD)
+
