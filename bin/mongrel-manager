@@ -35,7 +35,7 @@ class MongrelInstance
   def start
     zap if status == 'stale'
 
-    `mongrel_rails start -p #{port} -c #{root} -p #{pidfile} -d`
+    `mongrel_rails start -p #{port} -c #{root} -P #{pidfile} -d`
     sleep 5
     if status != 'running'
       STDERR.puts "Error starting mongrel, check the log file from #{root}/log/mongrel.log"
@@ -51,7 +51,7 @@ class MongrelInstance
       return false
     end
     
-    `mongrel_rails stop -c #{root} -p #{pidfile}`
+    `mongrel_rails stop -c #{root} -P #{pidfile}`
     sleep 5
     status != 'running'
   end
